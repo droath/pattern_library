@@ -1,0 +1,48 @@
+<?php
+
+namespace Drupal\pattern_library;
+
+use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\Plugin\DefaultPluginManager;
+use Drupal\pattern_library\Annotation\PatternModifierType;
+use Drupal\pattern_library\Plugin\PatternModifierTypeInterface;
+
+/**
+ * Pattern library modifier manager.
+ */
+class PatternModifierTypeManager extends DefaultPluginManager {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function __construct(
+    \Traversable $namespaces,
+    CacheBackendInterface $cache_backend,
+    ModuleHandlerInterface $module_handler
+  ) {
+    parent::__construct(
+      'Plugin/PatternModifierType',
+      $namespaces,
+      $module_handler,
+      PatternModifierTypeInterface::class,
+      PatternModifierType::class
+    );
+
+    $this->alterInfo('pattern_library_modifier');
+    $this->setCacheBackend($cache_backend, 'pattern_library_modifier_type');
+  }
+
+  /**
+   * Determine if the modifier type exists.
+   *
+   * @param $plugin_id
+   *   The modifier type plugin id.
+   *
+   * @return bool
+   */
+  public function exists($plugin_id) {
+    $definitions = $this->getDefinitions();
+    return isset($definitions[$plugin_id]);
+  }
+}

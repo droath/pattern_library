@@ -1,0 +1,8 @@
+services:
+  plugin.manager.pattern_library:
+    class: Drupal\pattern_library\PatternLibraryManager
+    arguments: ['@module_handler', '@theme_handler', '@cache.discovery']
+
+  plugin.manager.pattern_modifier_type:
+    class: Drupal\pattern_library\PatternModifierTypeManager
+    parent: default_plugin_manager

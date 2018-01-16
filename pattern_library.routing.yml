@@ -1,0 +1,7 @@
+pattern_library.form.settings:
+  path: '/admin/config/user-interface/pattern-library'
+  defaults:
+    _title: 'Pattern Library'
+    _form: '\Drupal\pattern_library\Form\PatternLibrarySettings'
+  requirements:
+    _permission: 'administer pattern library'

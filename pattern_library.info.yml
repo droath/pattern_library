@@ -1,0 +1,8 @@
+type: module
+name: Pattern Library
+description: Define pattern based layouts.
+core: 8.x
+package: User interface
+dependencies:
+  - drupal:system (>= 8.4)
+  - layout_discovery

@@ -1,0 +1,5 @@
+pattern_library.settings:
+  title: 'Pattern Library'
+  description: 'Manage pattern library settings.'
+  route_name: pattern_library.form.settings
+  parent: system.admin_config_ui

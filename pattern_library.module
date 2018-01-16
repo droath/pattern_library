@@ -1,0 +1,29 @@
+<?php
+
+/**
+ * @file
+ * The hook implementations for the pattern library module.
+ */
+
+/**
+ * Implements hook_theme().
+ */
+function pattern_library_theme($existing, $type, $theme, $path) {
+  return [
+    'pattern_library_layout' => [
+      'variables' => [
+        'source' => NULL,
+        'modifiers' => [],
+        'variables' => [],
+      ],
+    ]
+  ];
+}
+
+function template_preprocess_pattern_library_layout(&$variables) {
+  if (isset($variables['variables'])) {
+    foreach($variables['variables'] as $variable => $fields) {
+      $variables[$variable] = $fields;
+    }
+  }
+}
