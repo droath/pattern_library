@@ -5,6 +5,9 @@
  * The hook implementations for the pattern library module.
  */
 
+use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
+use Drupal\Core\Entity\EntityInterface;
+
 /**
  * Implements hook_theme().
  */
@@ -20,10 +23,28 @@ function pattern_library_theme($existing, $type, $theme, $path) {
   ];
 }
 
+/**
+ * Template preprocess for pattern library layout.
+ *
+ * @param $variables
+ */
 function template_preprocess_pattern_library_layout(&$variables) {
+  // Set the variables so they can be access based on their name.
   if (isset($variables['variables'])) {
     foreach($variables['variables'] as $variable => $fields) {
       $variables[$variable] = $fields;
     }
   }
 }
+
+/**
+ * Implements hook_entity_view_alter().
+ */
+function pattern_library_entity_view_alter(array &$build, EntityInterface $entity, EntityViewDisplayInterface $display) {
+  // Add entity to the build so that we can standardize on it in other portions
+  // of the application.
+  if (!isset($build['#entity'])) {
+    $build['#entity'] = $entity;
+  }
+}
+

@@ -4,14 +4,19 @@ namespace Drupal\pattern_library\Plugin\Layout;
 
 use Drupal\Component\Plugin\Exception\PluginException;
 use Drupal\Component\Plugin\PluginManagerInterface;
+use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Layout\Annotation\Layout;
 use Drupal\Core\Layout\LayoutDefault;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\Render\Element;
+use Drupal\field\Entity\FieldConfig;
 use Drupal\pattern_library\Exception\InvalidModifierException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Pattern library layout.
@@ -22,6 +27,16 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * )
  */
 class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface, ContainerFactoryPluginInterface {
+
+  /**
+   * @var RequestStack
+   */
+  protected $requestStack;
+
+  /**
+   * @var EntityFieldManagerInterface
+   */
+  protected $entityFieldManager;
 
   /**
    * @var PluginManagerInterface
@@ -35,9 +50,13 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     array $configuration,
     $plugin_id,
     $plugin_definition,
+    RequestStack $request_stack,
+    EntityFieldManagerInterface $entity_field_manager,
     PluginManagerInterface $modifier_type_manager
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->requestStack = $request_stack;
+    $this->entityFieldManager = $entity_field_manager;
     $this->modifierTypeManager = $modifier_type_manager;
   }
 
@@ -54,6 +73,8 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       $configuration,
       $plugin_id,
       $plugin_definition,
+      $container->get('request_stack'),
+      $container->get('entity_field.manager'),
       $container->get('plugin.manager.pattern_modifier_type')
     );
   }
@@ -71,7 +92,9 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       '#theme' => $definition->getThemeHook(),
       '#source' => $pattern->getSource(),
       '#variables' => $this->getPatternVariables($regions),
-      '#modifiers' => $this->getConfiguration()['modifiers'],
+      '#pre_render' => [
+        [$this, 'processModifiers']
+      ]
     ];
 
     if ($library = $definition->getLibrary()) {
@@ -86,7 +109,10 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
    */
   public function defaultConfiguration() {
     return parent::defaultConfiguration() + [
-        'modifiers' => [],
+        'modifiers' => [
+          'value' => NULL,
+          'field_override' => FALSE,
+        ],
         'render_type' => 'field',
       ];
   }
@@ -95,6 +121,8 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
    * {@inheritdoc}
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
+    $this->buildModifiersForm($form, $form_state);
+
     $form['render_type'] = [
       '#type' => 'select',
       '#title' => $this->t('Pattern Render Type'),
@@ -105,7 +133,6 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       ],
       '#default_value' => $this->getConfiguration()['render_type'],
     ];
-    $this->buildModifiersForm($form);
 
     return $form;
   }
@@ -121,6 +148,83 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
    */
   public function submitConfigurationForm(array &$form, FormStateInterface $form_state) {
     $this->configuration = $form_state->cleanValues()->getValues();
+  }
+
+  /**
+   * Process pattern modifiers.
+   *
+   * @param $element
+   *   An array of form element.
+   *
+   * @return array
+   *   A render array.
+   */
+  public function processModifiers($element) {
+    $entity = isset($element['#entity']) ? $element['#entity'] : NULL;
+
+    if (is_object($entity)) {
+      $element['#modifiers'] = $this->getModifiers($entity);
+    }
+
+    return $element;
+  }
+
+  /**
+   * Ajax trigger callback.
+   *
+   * @param $form
+   *   The form elements.
+   * @param FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return array
+   *   An array of form elements based on the trigger element parents.
+   */
+  public function ajaxTriggerCallback($form, FormStateInterface $form_state) {
+    $trigger = $form_state->getTriggeringElement();
+
+    $parent_form = NestedArray::getValue(
+      $form, array_slice($trigger['#array_parents'], 0, -1)
+    );
+
+    // Keep details type form elements open.
+    if ($parent_form['#type'] === 'details') {
+      $parent_form['#open'] = TRUE;
+    }
+
+    return $parent_form;
+  }
+
+  /**
+   * Get pattern modifiers.
+   *
+   * @param EntityInterface $entity
+   *   The entity object.
+   *
+   * @return array
+   *   An array of the processed modifiers.
+   */
+  protected function getModifiers(EntityInterface $entity) {
+    $modifiers = [];
+
+    foreach ($this->getConfiguration()['modifiers'] as $name => $modifier) {
+      if (!isset($modifier['value'])) {
+        continue;
+      }
+      $value = $modifier['value'];
+
+      if (isset($modifier['field_override']) && $modifier['field_override']) {
+        $field_name = $value;
+        if (isset($entity->{$field_name})) {
+          $value = $entity->{$field_name}->value;
+        }
+      }
+      $modifiers[$name] = $value;
+    }
+
+    return array_map(
+      'Drupal\Component\Utility\Html::escape', $modifiers
+    );
   }
 
   /**
@@ -162,6 +266,42 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
   }
 
   /**
+   * Get context based on request.
+   *
+   * @return array
+   *   An array of context based on the request.
+   */
+  protected function getContextFromRequest() {
+    $context = [];
+    $attributes = $this->requestStack
+      ->getCurrentRequest()
+      ->attributes
+      ->all();
+
+    if (isset($attributes['_entity_form'])) {
+      $entity_form = $attributes['_entity_form'];
+
+      if ($entity_form === 'entity_view_display.edit') {
+        $context = [
+          'bundle' => $attributes['bundle'],
+          'view_mode' => $attributes['view_mode_name'],
+          'entity_id' => $attributes['entity_type_id']
+        ];
+
+        // Find the entity type object within the request attributes.
+        foreach ($attributes as $attribute => $value) {
+          if (! $value instanceof EntityInterface) {
+            continue;
+          }
+          $context['entity_type'] = $value;
+        }
+      }
+    }
+
+    return $context;
+  }
+
+  /**
    * Build modifier form.
    *
    * @param $form
@@ -169,13 +309,21 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
    *
    * @throws InvalidModifierException
    */
-  protected function buildModifiersForm(array &$form) {
+  protected function buildModifiersForm(array &$form, FormStateInterface $form_state) {
     /** @var \Drupal\pattern_library\Plugin\Pattern $pattern */
     $pattern = $this
       ->getPluginDefinition()
       ->getPatternDefinition();
 
+    $config = $this->getConfiguration();
+    $trigger = $form_state->getTriggeringElement();
     $modifier_manager = $this->modifierTypeManager;
+
+    $modifiers = $config['modifiers'];
+    if (isset($trigger)) {
+      $parents = array_slice($trigger['#array_parents'], 0, -2);
+      $modifiers = $form_state->getValue($parents, []);
+    }
 
     $form['modifiers'] = [
       '#type' => 'details',
@@ -183,49 +331,88 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       '#open' => TRUE,
       '#group' => '',
     ];
-    $modifiers = $this->getConfiguration()['modifiers'];
-
     foreach ($pattern->getModifiers() as $name => $definition) {
       if (!isset($definition['type'])) {
         continue;
       }
-      if (isset($modifiers[$name])) {
-        $definition['default_value'] = $modifiers[$name];
-      }
       $type = $definition['type'];
-      unset($definition['type']);
+      $modifier = $modifiers[$name];
 
-      try {
-        $form['modifiers'][$name] = $modifier_manager
-          ->createInstance($type, $definition)
-          ->render();
-      } catch (PluginException $e) {
-        throw new InvalidModifierException(
-          $this->t('Invalid modifier of @type has been given.', ['@type' => $type])
-        );
+      $form['modifiers'][$name] = [
+        '#type' => 'details',
+        '#title' => $this->t('@name', ['@name' => $name]),
+        '#open' => FALSE,
+        '#prefix' => "<div id='modifiers-{$name}'>",
+        '#sufix' => '</div>',
+      ];
+
+      if (!isset($modifier['field_override']) || !$modifier['field_override']) {
+        $definition['default_value'] = $modifier['value'];
+
+        try {
+          $form['modifiers'][$name]['value'] = $modifier_manager
+            ->createInstance($type, $definition)
+            ->render();
+
+          if (!isset($form['modifiers'][$name]['value']['#description'])) {
+            $form['modifiers'][$name]['value']['#description'] = $this->t(
+              'Select the value to use for the modifier.'
+            );
+          }
+        } catch (PluginException $e) {
+          throw new InvalidModifierException(
+            $this->t('Invalid modifier of @type has been given.', ['@type' => $type])
+          );
+        }
       }
+      else {
+        $form['modifiers'][$name]['value'] = [
+          '#type' => 'select',
+          '#title' => $this->t('Field Value'),
+          '#required' => TRUE,
+          '#description' => $this->t('Select the field on which to extract the 
+          modifier value from.'),
+          '#options' => $this->getFieldOptions(),
+          '#empty_option' => $this->t(' -Select- '),
+          '#default_value' => $modifier['value']
+        ];
+      }
+      // Allow field overrides for any modifier.
+      $form['modifiers'][$name]['field_override'] = [
+        '#type' => 'checkbox',
+        '#title' => $this->t('Field Override'),
+        '#ajax' => [
+          'wrapper' => "modifiers-{$name}",
+          'callback' => [$this, 'ajaxTriggerCallback'],
+        ],
+        '#default_value' => $modifier['field_override'],
+      ];
     }
   }
 
   /**
-   * Get entity from regions.
+   * Get the field options.
    *
-   * @param array $regions
-   *   An array of regions.
-   *
-   * @return object|boolean
-   *   The entity which the field is attached too; otherwise FALSE.
+   * @return array
+   *   An array of fields keyed by name.
    */
-  protected function getEntityFromRegion(array $regions) {
-    foreach ($regions as $region => $fields) {
-      foreach ($fields as $field) {
-        if (!isset($field['#object'])) {
-          continue;
-        }
-        return $field['#object'];
+  protected function getFieldOptions() {
+    $context = $this->getContextFromRequest();
+    if (!isset($context['entity_id']) || !isset($context['bundle'])) {
+      return [];
+    }
+    $options = [];
+    $fields =  $this
+      ->entityFieldManager
+      ->getFieldDefinitions($context['entity_id'], $context['bundle']);
+
+    foreach ($fields as $fieldname => $field) {
+      if (! $field instanceof FieldConfig) {
+        continue;
       }
+      $options[$fieldname] = $field->label();
     }
 
-    return FALSE;
+    return $options;
   }
 }
