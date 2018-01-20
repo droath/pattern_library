@@ -9,6 +9,7 @@ use Drupal\Core\Extension\ThemeHandlerInterface;
 use Drupal\Core\Plugin\DefaultPluginManager;
 use Drupal\Core\Plugin\Discovery\ContainerDerivativeDiscoveryDecorator;
 use Drupal\Core\Plugin\Discovery\YamlDiscovery;
+use Drupal\pattern_library\Discovery\ComponentLibraryDiscoveryDecorator;
 use Drupal\pattern_library\Plugin\Pattern;
 
 /**
@@ -61,10 +62,19 @@ class PatternLibraryManager extends DefaultPluginManager implements PluginManage
         $this->moduleHandler->getModuleDirectories()
       );
       $discovery = new YamlDiscovery('pattern_library', $directories);
+      $discovery = new ComponentLibraryDiscoveryDecorator($discovery, $this->themeHandler);
       $this->discovery = new ContainerDerivativeDiscoveryDecorator($discovery);
     }
 
     return $this->discovery;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function processDefinition(&$definition, $plugin_id) {
+    parent::processDefinition($definition, $plugin_id);
+    $this->processSource($definition, $plugin_id);
   }
 
   /**
@@ -88,5 +98,24 @@ class PatternLibraryManager extends DefaultPluginManager implements PluginManage
   protected function providerExists($provider) {
     return parent::providerExists($provider) ||
       $this->themeHandler->themeExists($provider);
+  }
+
+  /**
+   * Add the source to the directive if possible.
+   *
+   * @param array $definition
+   */
+  protected function processSource(array &$definition, $plugin_id) {
+    if (isset($definition['source'])) {
+      return;
+    }
+
+    if (!isset($definition['source_file']) || !isset($definition['group'])) {
+      return;
+    }
+    $directories = explode('/', $definition['source_file']);
+    $last_directory = current(array_splice($directories, -2, 1));
+
+    $definition['source'] = "@{$definition['group']}/{$last_directory}/{$plugin_id}.twig";
   }
 }
