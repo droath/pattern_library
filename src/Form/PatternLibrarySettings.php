@@ -23,16 +23,8 @@ class PatternLibrarySettings extends ConfigFormBase {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state) {
-    $service = \Drupal::service('plugin.manager.core.layout');
-    $service->useCaches();
-    dpm($service->getDefinitions());
-
-
-//    $service = \Drupal::service('plugin.manager.pattern_library.modifier');
-//    $test= $service->getDefinitions();
-//    dpm($test);
-
     $config = $this->getConfig();
+
     $form['primary_colors'] = [
       '#type' => 'textarea',
       '#title' => $this->t('Primary Colors'),
