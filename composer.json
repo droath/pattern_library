@@ -1,12 +1,12 @@
 {
-    "name": "droath/pattern_library",
+    "name": "drupal/pattern_library",
     "description": "Connect Patterns to Drupal layout.",
     "type": "drupal-module",
     "license": "MIT",
     "authors": [
         {
             "name": "Travis Tomka",
-            "email": "underoathosx@gmail.com"
+            "email": "ttomka@isovera.com"
         }
     ],
     "require": {}
