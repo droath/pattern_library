@@ -44,6 +44,11 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
   protected $modifierTypeManager;
 
   /**
+   * @var boolean
+   */
+  protected $usesRenderType = TRUE;
+
+  /**
    * {@inheritdoc}
    */
   public function __construct(
@@ -105,15 +110,25 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
   }
 
   /**
+   * Use render types.
+   *
+   * @param bool $value
+   *
+   * @return PatternLibraryLayout
+   */
+  public function useRenderType($value = FALSE) {
+    $this->usesRenderType = $value;
+
+    return $this;
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function defaultConfiguration() {
     return parent::defaultConfiguration() + [
-        'modifiers' => [
-          'value' => NULL,
-          'field_override' => FALSE,
-        ],
-        'render_type' => 'field',
+        'modifiers' => [],
+        'render_type' => 'default',
       ];
   }
 
@@ -123,16 +138,18 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
     $this->buildModifiersForm($form, $form_state);
 
-    $form['render_type'] = [
-      '#type' => 'select',
-      '#title' => $this->t('Pattern Render Type'),
-      '#description' => $this->t('Set the render type for field output.'),
-      '#options' => [
-        'field' => $this->t('Field'),
-        'value_only' => $this->t('Value Only')
-      ],
-      '#default_value' => $this->getConfiguration()['render_type'],
-    ];
+    if ($this->usesRenderType) {
+      $form['render_type'] = [
+        '#type' => 'select',
+        '#title' => $this->t('Field Render Type'),
+        '#description' => $this->t('Set the render type for field output.'),
+        '#options' => [
+          'default' => $this->t('Default'),
+          'value_only' => $this->t('Value Only')
+        ],
+        '#default_value' => $this->getConfiguration()['render_type'],
+      ];
+    }
 
     return $form;
   }
@@ -244,21 +261,29 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       if (!array_key_exists($region_name, $regions)) {
         continue;
       }
-
-      if (isset($configuration['render_type'])
-        && $configuration['render_type'] == 'value_only') {
-
-        // Determine how to render region fields.
-        foreach ($regions[$region_name] as $field_name => $elements) {
-          $variables[$region_name][$field_name] = [];
-
-          foreach (Element::children($elements) as $index) {
-            $variables[$region_name][$field_name][$index] = $elements[$index];
-          }
-        }
+      if (!$this->usesRenderType) {
+        $variables[$region_name] = $regions[$region_name];
       }
       else {
-        $variables[$region_name] = $regions[$region_name];
+        // Set the variables based on the pattern render type. This option is
+        // only valid when the regions contain field items.
+        if (isset($configuration['render_type'])
+          && $configuration['render_type'] == 'value_only') {
+
+          foreach ($regions[$region_name] as $field_name => $elements) {
+            if (!isset($elements['#items'])) {
+              continue;
+            }
+            $variables[$region_name][$field_name] = [];
+
+            foreach (Element::children($elements) as $index) {
+              $variables[$region_name][$field_name][$index] = $elements[$index];
+            }
+          }
+        }
+        else {
+          $variables[$region_name] = $regions[$region_name];
+        }
       }
     }
 
@@ -320,15 +345,17 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     $modifier_manager = $this->modifierTypeManager;
 
     $modifiers = $config['modifiers'];
-    if (isset($trigger)) {
+
+    if (isset($trigger)
+      && !isset($form['#pattern_library_formatter'])
+      && !$form['#pattern_library_formatter']) {
       $parents = array_slice($trigger['#array_parents'], 0, -2);
       $modifiers = $form_state->getValue($parents, []);
     }
-
     $form['modifiers'] = [
       '#type' => 'details',
       '#title' => $this->t('Pattern Modifiers'),
-      '#open' => TRUE,
+      '#open' => FALSE,
       '#group' => '',
     ];
     foreach ($pattern->getModifiers() as $name => $definition) {
@@ -336,7 +363,10 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         continue;
       }
       $type = $definition['type'];
-      $modifier = $modifiers[$name];
+
+      $modifier = isset($modifiers[$name])
+        ? $modifiers[$name]
+        : ['value' => NULL, 'field_override' => FALSE];
 
       $form['modifiers'][$name] = [
         '#type' => 'details',
@@ -370,13 +400,14 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
           '#type' => 'select',
           '#title' => $this->t('Field Value'),
           '#required' => TRUE,
-          '#description' => $this->t('Select the field on which to extract the 
+          '#description' => $this->t('Select the field on which to extract the
           modifier value from.'),
           '#options' => $this->getFieldOptions(),
           '#empty_option' => $this->t(' -Select- '),
           '#default_value' => $modifier['value']
         ];
       }
+
       // Allow field overrides for any modifier.
       $form['modifiers'][$name]['field_override'] = [
         '#type' => 'checkbox',
@@ -387,6 +418,10 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         ],
         '#default_value' => $modifier['field_override'],
       ];
+    }
+
+    if (empty(Element::children($form['modifiers']))) {
+      unset($form['modifiers']);
     }
   }
 
