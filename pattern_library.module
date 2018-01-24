@@ -48,3 +48,21 @@ function pattern_library_entity_view_alter(array &$build, EntityInterface $entit
   }
 }
 
+/**
+ * Implements hook_field_formatter_info_alter().
+ */
+function pattern_library_field_formatter_info_alter(array &$info) {
+  // Attach the pattern library layout formatter to all field types.
+  $info['pattern_library_layout']['field_types'] = pattern_library_get_field_types();
+}
+
+/**
+ * Get field types.
+ *
+ * @return array
+ *   An array of field types.
+ */
+function pattern_library_get_field_types() {
+  $manager = \Drupal::service('plugin.manager.field.field_type');
+  return array_keys($manager->getDefinitions());
+}
