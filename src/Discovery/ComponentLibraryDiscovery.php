@@ -98,10 +98,20 @@ class ComponentLibraryDiscovery implements DiscoveryInterface {
           $definition = $this->decode($file);
           $definition['group'] = $group_name;
 
-          // Attach source file to the definition if the file exists.
-          if (file_exists("{$directory}/{$plugin_id}.twig")) {
-            $definition['source_file'] =  "{$group_path}/{$plugin_id}.twig";
+          $twig_filenames = [
+            $plugin_id,
+            strtr($plugin_id, '_', '-')
+          ];
+
+          // Iterate over the available twig filename conventions, if found
+          // attach the component source file to the pattern library definition.
+          foreach ($twig_filenames as $twig_filename) {
+            if (!file_exists("{$directory}/{$twig_filename}.twig")) {
+              continue;
+            }
+            $definition['source_file'] =  "{$group_path}/{$twig_filename}.twig";
           }
+
           $this->fileCache->set($filepath, $definition);
           $all["{$this->themeName}:{$plugin_id}"] = $definition;
         }
