@@ -114,8 +114,8 @@ class PatternLibraryManager extends DefaultPluginManager implements PluginManage
       return;
     }
     $directories = explode('/', $definition['source_file']);
-    $last_directory = current(array_splice($directories, -2, 1));
+    $source_file = implode('/', array_slice($directories, -2));
 
-    $definition['source'] = "@{$definition['group']}/{$last_directory}/{$plugin_id}.twig";
+    $definition['source'] = "@{$definition['group']}/{$source_file}";
   }
 }
