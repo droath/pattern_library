@@ -2,6 +2,7 @@
 
 namespace Drupal\pattern_library\Plugin\PatternModifierType;
 
+use Drupal\Component\Utility\Unicode;
 use Drupal\pattern_library\Annotation\PatternModifierType;
 use Drupal\pattern_library\Plugin\PatternModifierTypeBase;
 use Drupal\pattern_library\Plugin\PatternModifierTypeInterface;
@@ -33,18 +34,19 @@ class Select extends PatternModifierTypeBase implements PatternModifierTypeInter
    *   An array of options.
    */
   public function options() {
-    $option = $this->hasConfiguration('options')
+    $options = $this->hasConfiguration('options')
       ? $this->getConfiguration()['options']
       : [];
 
-    if (!empty($option)) {
-      $option = array_combine(
-        array_map('strtolower', $option),
-        array_map('ucwords', $option)
-      );
+    $formatted_options = [];
+    foreach ($options as $key => $value) {
+      if (is_numeric($key)) {
+        $key = strtolower($value);
+      }
+      $formatted_options[$key] = Unicode::ucwords($value);
     }
 
-    return $option;
+    return $formatted_options;
   }
 
   /**
