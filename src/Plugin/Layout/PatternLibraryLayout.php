@@ -366,7 +366,7 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
 
       $form['modifiers'][$name] = [
         '#type' => 'details',
-        '#title' => $this->t('@name', ['@name' => $name]),
+        '#title' => $this->t('@name', ['@name' => strtr($name, '_', ' ')]),
         '#open' => FALSE,
         '#prefix' => "<div id='modifiers-{$name}'>",
         '#sufix' => '</div>',
