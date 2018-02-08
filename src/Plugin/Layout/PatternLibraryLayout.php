@@ -261,28 +261,24 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       if (!array_key_exists($region_name, $regions)) {
         continue;
       }
-      if (!$this->usesRenderType) {
-        $variables[$region_name] = $regions[$region_name];
-      }
-      else {
-        // Set the variables based on the pattern render type. This option is
-        // only valid when the regions contain field items.
-        if (isset($configuration['render_type'])
-          && $configuration['render_type'] == 'value_only') {
+      foreach ($regions[$region_name] as $index => $element) {
+        if (!isset($element['#items']) || !isset($element['#field_name'])) {
+          continue;
+        }
+        $field_name = substr($element['#field_name'], 6);
+        $variables[$region_name][$field_name] = $regions[$region_name][$index];
 
-          foreach ($regions[$region_name] as $field_name => $elements) {
-            if (!isset($elements['#items'])) {
-              continue;
-            }
+        if ($this->usesRenderType) {
+          // Set the variables based on the pattern render type. This option is
+          // only valid when the regions contain field items.
+          if (isset($configuration['render_type'])
+            && $configuration['render_type'] == 'value_only') {
+
             $variables[$region_name][$field_name] = [];
-
-            foreach (Element::children($elements) as $index) {
-              $variables[$region_name][$field_name][$index] = $elements[$index];
+            foreach (Element::children($element) as $delta) {
+              $variables[$region_name][$field_name][$delta] = $element[$delta];
             }
           }
-        }
-        else {
-          $variables[$region_name] = $regions[$region_name];
         }
       }
     }
