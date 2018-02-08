@@ -23,7 +23,7 @@ class Select extends PatternModifierTypeBase implements PatternModifierTypeInter
     return [
       '#type' => 'select',
       '#options' => $this->options(),
-      '#empty_option' => $this->t(' -Select- '),
+      '#empty_option' => $this->t(' -Default- '),
     ] + parent::render();
   }
 
