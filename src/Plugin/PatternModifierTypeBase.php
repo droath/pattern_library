@@ -4,6 +4,7 @@ namespace Drupal\pattern_library\Plugin;
 
 use Drupal\Core\Plugin\PluginBase;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 
 abstract class PatternModifierTypeBase extends PluginBase {
 
@@ -16,7 +17,7 @@ abstract class PatternModifierTypeBase extends PluginBase {
    */
   protected function title() {
     return $this->hasConfiguration('title')
-      ? $this->getConfiguration()['title']
+      ? new TranslatableMarkup($this->getConfiguration()['title'])
       : NULL;
   }
 
@@ -27,7 +28,7 @@ abstract class PatternModifierTypeBase extends PluginBase {
    */
   protected function description() {
     return $this->hasConfiguration('description')
-      ? $this->getConfiguration()['description']
+      ? new TranslatableMarkup($this->getConfiguration()['description'])
       : NULL;
   }
 
@@ -40,6 +41,15 @@ abstract class PatternModifierTypeBase extends PluginBase {
     return $this->hasConfiguration('default_value')
       ? $this->getConfiguration()['default_value']
       : NULL;
+  }
+
+  /**
+   * Default configuration.
+   *
+   * @return array
+   */
+  protected function defaultConfiguration() {
+    return [];
   }
 
   /**
@@ -61,6 +71,19 @@ abstract class PatternModifierTypeBase extends PluginBase {
    * @return array
    */
   protected function getConfiguration() {
-    return $this->configuration;
+    return $this->configuration + $this->defaultConfiguration();
+  }
+
+  /**
+   * Pattern modifier base render array.
+   *
+   * @return array
+   */
+  protected function render() {
+    return [
+      '#title' => $this->title(),
+      '#description' => $this->description(),
+      '#default_value' => $this->defaultValue()
+    ];
   }
 }

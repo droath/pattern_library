@@ -379,12 +379,6 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
           $form['modifiers'][$name]['value'] = $modifier_manager
             ->createInstance($type, $definition)
             ->render();
-
-          if (!isset($form['modifiers'][$name]['value']['#description'])) {
-            $form['modifiers'][$name]['value']['#description'] = $this->t(
-              'Select the value to use for the modifier.'
-            );
-          }
         } catch (PluginException $e) {
           throw new InvalidModifierException(
             $this->t('Invalid modifier of @type has been given.', ['@type' => $type])

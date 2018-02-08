@@ -2,7 +2,6 @@
 
 namespace Drupal\pattern_library\Plugin\PatternModifierType;
 
-use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\pattern_library\Annotation\PatternModifierType;
 use Drupal\pattern_library\Plugin\PatternModifierTypeBase;
 use Drupal\pattern_library\Plugin\PatternModifierTypeInterface;
@@ -22,9 +21,6 @@ class Text extends PatternModifierTypeBase implements PatternModifierTypeInterfa
   public function render() {
     return [
       '#type' => 'textfield',
-      '#title' => $this->title(),
-      '#description' => $this->description(),
-      '#default_value' => $this->defaultValue(),
-    ];
+    ] + parent::render();
   }
 }
