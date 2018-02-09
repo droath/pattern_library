@@ -4,6 +4,7 @@ namespace Drupal\pattern_library\Plugin\Layout;
 
 use Drupal\Component\Plugin\Exception\PluginException;
 use Drupal\Component\Plugin\PluginManagerInterface;
+use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityInterface;
@@ -99,7 +100,7 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       '#variables' => $this->getPatternVariables($regions),
       '#pre_render' => [
         [$this, 'processModifiers']
-      ]
+      ],
     ];
 
     if ($library = $definition->getLibrary()) {
@@ -224,11 +225,21 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
   protected function getModifiers(EntityInterface $entity) {
     $modifiers = [];
 
+    $pattern = $this
+      ->getPluginDefinition()
+      ->getPatternDefinition();
+
+    $pattern_modifiers = $pattern->getModifiers();
+    $modifier_manager = $this->modifierTypeManager;
+
     foreach ($this->getConfiguration()['modifiers'] as $name => $modifier) {
-      if (!isset($modifier['value'])) {
+      if (!isset($modifier['value']) || !isset($pattern_modifiers[$name])) {
         continue;
       }
+      $definition = $pattern_modifiers[$name];
+
       $value = $modifier['value'];
+      $modifier_type = $definition['type'];
 
       if (isset($modifier['field_override']) && $modifier['field_override']) {
         $field_name = $value;
@@ -236,12 +247,13 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
           $value = $entity->{$field_name}->value;
         }
       }
-      $modifiers[$name] = $value;
+      $value = Html::escape($value);
+
+      $modifiers[$name] = $modifier_manager
+        ->castModifierValue($modifier_type, $value);
     }
 
-    return array_map(
-      'Drupal\Component\Utility\Html::escape', $modifiers
-    );
+    return $modifiers;
   }
 
   /**

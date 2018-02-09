@@ -23,4 +23,11 @@ class Boolean extends PatternModifierTypeBase implements PatternModifierTypeInte
       '#type' => 'checkbox',
     ] + parent::render();
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function castValue($value) {
+    return (bool) $value;
+  }
 }

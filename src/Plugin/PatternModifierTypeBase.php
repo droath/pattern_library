@@ -11,6 +11,18 @@ abstract class PatternModifierTypeBase extends PluginBase {
   use StringTranslationTrait;
 
   /**
+   * Define the cast value.
+   *
+   * @param $value
+   *   The raw value input.
+   *
+   * @return mixed
+   */
+  public static function castValue($value) {
+    return $value;
+  }
+
+  /**
    * Pattern modifier title.
    *
    * @return string

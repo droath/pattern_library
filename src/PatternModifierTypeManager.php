@@ -45,4 +45,43 @@ class PatternModifierTypeManager extends DefaultPluginManager {
     $definitions = $this->getDefinitions();
     return isset($definitions[$plugin_id]);
   }
+
+  /**
+   * Get pattern modifier classname.
+   *
+   * @param $plugin_id
+   *   The modifier type plugin id.
+   *
+   * @return string|null
+   */
+  public function getClassname($plugin_id) {
+    $definition = $this->getDefinition($plugin_id);
+
+    if (!isset($definition['class'])
+      || !class_exists($definition['class'])) {
+      return null;
+    }
+
+    return $definition['class'];
+  }
+
+  /**
+   * Cast pattern modifier value.
+   *
+   * @param $plugin_id
+   *   The modifier type plugin id.
+   * @param $value
+   *   Teh modifier value that should be casted.
+   *
+   * @return mixed
+   */
+  public function castModifierValue($plugin_id, $value) {
+    $classname = $this->getClassname($plugin_id);
+
+    if (!isset($classname)) {
+      return $value;
+    }
+
+    return $classname::castValue($value);
+  }
 }
