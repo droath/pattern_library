@@ -16,6 +16,7 @@ use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\Render\Element;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\pattern_library\Exception\InvalidModifierException;
+use Drupal\pattern_library\PatternModifierTypeManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 
@@ -247,8 +248,11 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
           $value = $entity->{$field_name}->value;
         }
       }
-      $value = Html::escape($value);
+      $value = !is_array($value)
+        ? Html::escape($value)
+        : array_map('\Drupal\Component\Utility\Html::escape', $value);
 
+      /** @var PatternModifierTypeManager $modifier_manager */
       $modifiers[$name] = $modifier_manager
         ->castModifierValue($modifier_type, $value);
     }
@@ -277,8 +281,7 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         if (!isset($element['#items']) || !isset($element['#field_name'])) {
           continue;
         }
-        $field_name = substr($element['#field_name'], 6);
-        $variables[$region_name][$field_name] = $regions[$region_name][$index];
+        $variables[$region_name] = $regions[$region_name][$index];
 
         if ($this->usesRenderType) {
           // Set the variables based on the pattern render type. This option is
@@ -286,9 +289,9 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
           if (isset($configuration['render_type'])
             && $configuration['render_type'] == 'value_only') {
 
-            $variables[$region_name][$field_name] = [];
+            $variables[$region_name] = [];
             foreach (Element::children($element) as $delta) {
-              $variables[$region_name][$field_name][$delta] = $element[$delta];
+              $variables[$region_name][$delta] = $element[$delta];
             }
           }
         }
