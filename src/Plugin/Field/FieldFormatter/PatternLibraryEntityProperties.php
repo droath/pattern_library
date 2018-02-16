@@ -2,16 +2,22 @@
 
 namespace Drupal\pattern_library\Plugin\Field\FieldFormatter;
 
+use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Annotation\Translation;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
+use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Field\Annotation\FieldFormatter;
+use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemListInterface;
+use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Field\FormatterBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Render\Element;
+use Drupal\Core\TypedData\DataReferenceDefinitionInterface;
+use Drupal\Core\TypedData\ListDataDefinitionInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -99,6 +105,7 @@ class PatternLibraryEntityProperties extends FormatterBase implements ContainerF
 
     $settings = $this->getSettings();
     $parent_fieldname = $this->getFieldName();
+    $entity_field_options = $this->getTargetEntityFieldOptions();
 
     $form['property_mapping'] = [
       '#type' => 'details',
@@ -106,9 +113,16 @@ class PatternLibraryEntityProperties extends FormatterBase implements ContainerF
       '#open' => TRUE,
       '#tree' => TRUE,
     ];
+    $property_parents = [
+      'fields',
+      $parent_fieldname,
+      'settings_edit_form',
+      'settings',
+      'property_mapping',
+    ];
     $property_settings = $settings['property_mapping'];
 
-    foreach ($this->getTargetEntityFields() as $bundle_name => $fields) {
+    foreach ($this->getTargetEntityFieldsInfo() as $bundle_name => $fields) {
       $form['property_mapping'][$bundle_name] = [
         '#type' => 'details',
         '#title' => $this->t('Bundle: @bundle_name', ['@bundle_name' => $bundle_name]),
@@ -122,7 +136,7 @@ class PatternLibraryEntityProperties extends FormatterBase implements ContainerF
         '#type' => 'checkboxes',
         '#title' => $this->t('Enabled fields'),
         '#required' => TRUE,
-        '#options' => $fields,
+        '#options' => $entity_field_options[$bundle_name],
         '#default_value' => isset($bundle_settings['enabled_fields'])
           ? $bundle_settings['enabled_fields']
           : [],
@@ -130,20 +144,25 @@ class PatternLibraryEntityProperties extends FormatterBase implements ContainerF
       $fields_settings = isset($bundle_settings['fields'])
         ? $bundle_settings['fields']
         : [];
+      $property_bundle_parents = array_merge($property_parents, [$bundle_name, 'fields']);
 
-      foreach ($fields as $fieldname => $label) {
+      foreach ($fields as $fieldname => $field_info) {
+        $label = $field_info['label'];
+        $property_fieldname_parents = array_merge($property_bundle_parents, [$fieldname]);
+
+        $wrapper_id = "property-mapping-{$bundle_name}-fields-{$fieldname}";
         $form['property_mapping'][$bundle_name]['fields'][$fieldname] = [
           '#type' => 'details',
           '#title' => $this->t('Field: @label', ['@label' => $label]),
+          '#prefix' => '<div id="' . $wrapper_id . '">',
+          '#suffix' => '</div>',
           '#states' => [
             'visible' => [
               ':input[name="fields[' . $parent_fieldname . '][settings_edit_form][settings][property_mapping][' . $bundle_name . '][enabled_fields][' . $fieldname . ']"]' => ['checked' => TRUE]
             ]
           ],
         ];
-        $field_settings = isset($fields_settings[$fieldname])
-          ? $fields_settings[$fieldname]
-          : [];
+        $field_settings = $form_state->getValue($property_fieldname_parents, $fields_settings[$fieldname]);
 
         $form['property_mapping'][$bundle_name]['fields'][$fieldname]['property_name'] = [
           '#type' => 'textfield',
@@ -158,17 +177,54 @@ class PatternLibraryEntityProperties extends FormatterBase implements ContainerF
           '#title' => $this->t('Render Type'),
           '#options' => [
             'default' => $this->t('Default'),
-            'value_only' => $this->t('Value only')
+            'property' => $this->t('Property'),
+            'value_only' => $this->t('Value only'),
           ],
           '#required' => TRUE,
           '#default_value' => isset($field_settings['property_render_type'])
             ? $field_settings['property_render_type']
             : 'default',
+          '#ajax' => [
+            'wrapper' => $wrapper_id,
+            'callback' => [$this, 'renderTypeAjaxCallback']
+          ]
         ];
+        if (isset($field_settings['property_render_type'])
+          && $field_settings['property_render_type'] === 'property') {
+          $form['property_mapping'][$bundle_name]['fields'][$fieldname]['property'] = [
+            '#type' => 'select',
+            '#title' => $this->t('Property'),
+            '#options' => $this->processPropertyOptions($field_info['properties']),
+            '#required' => !empty($bundle_settings['enabled_fields'][$fieldname]) && $field_settings['property_render_type'] === 'property',
+            '#empty_option' => $this->t('- Select -'),
+            '#default_value' => isset($field_settings['property'])
+              ? $field_settings['property']
+              : NULL,
+          ];
+        }
       }
     }
 
     return $form;
+  }
+
+  /**
+   * Render type ajax callback.
+   *
+   * @param array $form
+   * @param FormStateInterface $form_state
+   *
+   * @return mixed
+   */
+  public function renderTypeAjaxCallback(array $form, FormStateInterface $form_state) {
+    $trigger_element = $form_state->getTriggeringElement();
+
+    $output = NestedArray::getValue(
+      $form, array_slice($trigger_element['#array_parents'], 0, -1)
+    );
+    $output['#open'] = TRUE;
+
+    return $output;
   }
 
   /**
@@ -179,11 +235,11 @@ class PatternLibraryEntityProperties extends FormatterBase implements ContainerF
   }
 
   /**
-   * Get target entity fields.
+   * Get target entity fields info.
    *
    * @return array
    */
-  protected function getTargetEntityFields() {
+  protected function getTargetEntityFieldsInfo() {
     $settings = $this->getFieldSettings();
     $target_type = $this->getFieldSetting('target_type');
 
@@ -201,24 +257,31 @@ class PatternLibraryEntityProperties extends FormatterBase implements ContainerF
     $fields = [];
     foreach ($target_bundles as $bundle_name) {
       $definitions = $this->entityFieldManager->getFieldDefinitions($target_type, $bundle_name);
+
       foreach ($definitions as $fieldname => $definition) {
-        if ($definition->isComputed()) {
+        if (!$definition instanceof ListDataDefinitionInterface
+          || $definition->isComputed()) {
           continue;
         }
-        $fields[$bundle_name][$fieldname] = $definition->getLabel();
+        $field_type = $definition->getType();
+
+        $properties = $definition instanceof FieldStorageDefinitionInterface
+          ? $definition->getPropertyDefinitions()
+          : $definition->getItemDefinition()->getPropertyDefinitions();
+
+        // Retrieve the entity reference properties instead.
+        if (in_array($field_type, ['image', 'entity_reference'])) {
+          $properties = $this->getEntityReferenceProperties($properties);
+        }
+
+        $fields[$bundle_name][$fieldname] = [
+          'label' => $definition->getLabel(),
+          'properties' => $this->formatPropertyOptions($properties),
+        ];
       }
     }
 
     return $fields;
-  }
-
-  /**
-   * Get formatter field name.
-   *
-   * @return string
-   */
-  protected function getFieldName() {
-    return $this->fieldDefinition->getName();
   }
 
   /**
@@ -270,14 +333,194 @@ class PatternLibraryEntityProperties extends FormatterBase implements ContainerF
               $value[$delta] = $element[$delta];
             }
             break;
+          case 'property':
+            $value = [
+              '#markup' => $this->getEntityPropertyValue(
+                $entity, $fieldname, $field_settings['property']
+              )
+            ];
+            break;
 
           default:
             $value = $element;
         }
-        $output[$delta][$property_key] = $value;
+        $cardinality = $this->getFieldStorage()->getCardinality();
+
+        if ($cardinality === 1) {
+          $output[$property_key] = $value;
+        }
+        else {
+          $output[$delta][$property_key] = $value;
+        }
       }
     }
 
     return $output;
   }
+
+  /**
+   * Process property options.
+   *
+   * @param array $properties
+   *
+   * @return array
+   */
+  protected function processPropertyOptions(array $properties) {
+    $options = [];
+
+    foreach ($properties as $property => $value) {
+      if (is_array($value)) {
+        $options[$property] = $value;
+      }
+      else {
+        $options[$property] = $properties;
+      }
+    }
+
+    return $options;
+  }
+
+  /**
+   * Get target entity field options.
+   *
+   * @return array
+   */
+  protected function getTargetEntityFieldOptions() {
+    $options = [];
+
+    foreach ($this->getTargetEntityFieldsInfo() as $bundle => $fields) {
+      foreach ($fields as $field_name => $field_info) {
+        if (!isset($field_info['label'])) {
+          continue;
+        }
+        $options[$bundle][$field_name] = $field_info['label'];
+      }
+    }
+
+    return $options;
+  }
+
+  /**
+   * Format properties options.
+   *
+   * @param $properties
+   * @param array $options
+   *
+   * @return array
+   */
+  protected function formatPropertyOptions($properties, &$options = []) {
+    foreach ($properties as $property => $definition) {
+      if (is_array($definition)) {
+        $value = $this->formatPropertyOptions($definition, $options[$property]);
+        $options[$property] = !empty($value) ? $value : [];
+      }
+      else {
+        if ($definition->isComputed()) {
+          continue;
+        }
+        $options[$property] = $definition->getLabel();
+      }
+    }
+
+    return $options;
+  }
+
+  /**
+   * Get entity reference properties.
+   *
+   * @param array $parent_properties
+   *   An array of the parent property definitions.
+   *
+   * @return array
+   */
+  protected function getEntityReferenceProperties(array $parent_properties) {
+    $properties = [];
+
+    if ($target_info = $this->findEntityDataReferenceTargetInfo($parent_properties)) {
+      $definition = $target_info['definition'];
+      $properties[$target_info['name']] = $definition->getPropertyDefinitions();
+    }
+
+    return $properties;
+  }
+
+  /**
+   * Find entity data reference target info.
+   *
+   * @param array $properties
+   *   The parent properties.
+   *
+   * @return array
+   */
+  protected function findEntityDataReferenceTargetInfo(array $properties) {
+    foreach ($properties as $name => $definition) {
+      if (!$definition instanceof DataReferenceDefinitionInterface) {
+        continue;
+      }
+      return [
+        'name' => $name,
+        'definition' => $definition->getTargetDefinition(),
+      ];
+    }
+
+    return [];
+  }
+
+  /**
+   * Get entity property value.
+   *
+   * @param EntityInterface $entity
+   * @param $field_name
+   * @param $field_property
+   *
+   * @return string
+   */
+  protected function getEntityPropertyValue(EntityInterface $entity, $field_name, $field_property) {
+    $value = NULL;
+    $field = $entity->get($field_name);
+
+    if (!$field->isEmpty()) {
+      $property_name = $field->getName();
+      $property_value = $field->{$field_property};
+
+      if (is_scalar($property_value)) {
+        $value = $property_value;
+      }
+      else {
+        if ($field instanceof EntityReferenceFieldItemListInterface) {
+          $property_value = $field->entity->{$field_property};
+        }
+        $value = $property_value->value;
+        $property_name = $property_value->getName();
+      }
+      $definition = $entity->getFieldDefinition($field_name);
+
+      // Allow for altercations to the field property value.
+      if ($property_name === 'uri' &&
+        in_array($definition->getType(), ['image', 'file'])) {
+        $value = file_create_url($value);
+      }
+    }
+
+    return $value;
+  }
+
+  /**
+   * Get formatter field name.
+   *
+   * @return string
+   */
+  protected function getFieldName() {
+    return $this->fieldDefinition->getName();
+  }
+
+  /**
+   * Get formatter field storage.
+   *
+   * @return FieldStorageDefinitionInterface
+   */
+  protected function getFieldStorage() {
+    return $this->fieldDefinition->getFieldStorageDefinition();
+  }
+
 }
