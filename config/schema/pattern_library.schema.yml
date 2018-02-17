@@ -28,3 +28,6 @@ field.formatter.settings.pattern_library_entity_properties:
                 property_render_type:
                   type: string
                   label: 'Property render type'
+                property:
+                  type: string
+                  label: 'Property'
