@@ -201,7 +201,6 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
    */
   public function ajaxTriggerCallback($form, FormStateInterface $form_state) {
     $trigger = $form_state->getTriggeringElement();
-
     $parent_form = NestedArray::getValue(
       $form, array_slice($trigger['#array_parents'], 0, -1)
     );
@@ -234,16 +233,21 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     $modifier_manager = $this->modifierTypeManager;
 
     foreach ($this->getConfiguration()['modifiers'] as $name => $modifier) {
-      if (!isset($modifier['value']) || !isset($pattern_modifiers[$name])) {
+      if ((!isset($modifier['value']) && !isset($modifier['field_name']))
+        || !isset($pattern_modifiers[$name])) {
         continue;
       }
+      $value = NULL;
       $definition = $pattern_modifiers[$name];
-
-      $value = $modifier['value'];
       $modifier_type = $definition['type'];
 
-      if (isset($modifier['field_override']) && $modifier['field_override']) {
-        $field_name = $value;
+      if (isset($modifier['value']) && !empty($modifier['value'])) {
+        $value = $modifier['value'];
+      }
+      else if (isset($modifier['field_name']) && isset($modifier['field_override'])
+        && $modifier['field_override']) {
+        $field_name = $modifier['field_name'];
+
         if (isset($entity->{$field_name})) {
           $value = $entity->{$field_name}->value;
         }
@@ -251,6 +255,10 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       $value = !is_array($value)
         ? Html::escape($value)
         : array_map('\Drupal\Component\Utility\Html::escape', $value);
+
+      if (is_array($value) && count($value) === 1) {
+        $value = reset($value);
+      }
 
       /** @var PatternModifierTypeManager $modifier_manager */
       $modifiers[$name] = $modifier_manager
@@ -357,12 +365,12 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
 
     $modifiers = $config['modifiers'];
 
-    if (isset($trigger)
-      && !isset($form['#pattern_library_formatter'])
-      && !$form['#pattern_library_formatter']) {
-      $parents = array_slice($trigger['#array_parents'], 0, -2);
-      $modifiers = $form_state->getValue($parents, []);
+    if (isset($trigger) && isset($trigger['#modifier_override'])
+      && $trigger['#modifier_override']) {
+      $parents = array_slice($trigger['#parents'], 0, -2);
+      $modifiers = $form_state->getValue($parents, $modifiers);
     }
+
     $form['modifiers'] = [
       '#type' => 'details',
       '#title' => $this->t('Pattern Modifiers'),
@@ -377,19 +385,18 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
 
       $modifier = isset($modifiers[$name])
         ? $modifiers[$name]
-        : ['value' => NULL, 'field_override' => FALSE];
+        : ['value' => NULL, 'field_name' => NULL, 'field_override' => FALSE];
 
       $form['modifiers'][$name] = [
         '#type' => 'details',
         '#title' => $this->t('@name', ['@name' => strtr($name, '_', ' ')]),
-        '#open' => FALSE,
-        '#prefix' => "<div id='modifiers-{$name}'>",
-        '#sufix' => '</div>',
+        '#open' => FALSE
       ];
+      $form['modifiers'][$name]['#prefix'] = "<div id='modifiers-{$name}'>";
+      $form['modifiers'][$name]['#suffix'] = '</div>';
 
       if (!isset($modifier['field_override']) || !$modifier['field_override']) {
         $definition['default_value'] = $modifier['value'];
-
         try {
           $form['modifiers'][$name]['value'] = $modifier_manager
             ->createInstance($type, $definition)
@@ -401,15 +408,18 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         }
       }
       else {
-        $form['modifiers'][$name]['value'] = [
+        $options = $this->getFieldOptions();
+        $form['modifiers'][$name]['field_name'] = [
           '#type' => 'select',
-          '#title' => $this->t('Field Value'),
-          '#required' => TRUE,
+          '#title' => $this->t('Field'),
           '#description' => $this->t('Select the field on which to extract the
           modifier value from.'),
-          '#options' => $this->getFieldOptions(),
-          '#empty_option' => $this->t(' -Select- '),
-          '#default_value' => $modifier['value']
+          '#options' => $options,
+          '#empty_option' => $this->t('- None -'),
+          '#default_value' => isset($modifier['field_name'])
+            && isset($options[$modifier['field_name']])
+              ? $modifier['field_name']
+              : NULL,
         ];
       }
 
@@ -422,12 +432,15 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
           'callback' => [$this, 'ajaxTriggerCallback'],
         ],
         '#default_value' => $modifier['field_override'],
+        '#modifier_override' => TRUE,
+        '#limit_validation_errors' => FALSE,
       ];
     }
 
     if (empty(Element::children($form['modifiers']))) {
       unset($form['modifiers']);
     }
+    
   }
 
   /**

@@ -20,10 +20,14 @@ class Select extends PatternModifierTypeBase implements PatternModifierTypeInter
    * {@inheritdoc}
    */
   public function render() {
+    $options = $this->options();
+    $default_value = $this->defaultValue();
+
     return [
       '#type' => 'select',
-      '#options' => $this->options(),
+      '#options' => $options,
       '#empty_option' => $this->t(' -Default- '),
+      '#default_value' => isset($options[$default_value]) ? $default_value : NULL,
     ] + parent::render();
   }
 
