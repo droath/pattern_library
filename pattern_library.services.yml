@@ -10,3 +10,9 @@ services:
   pattern_library.theme_override.manager:
     class: Drupal\pattern_library\PatternThemeOverrideManager
     arguments: ['@entity_type.manager']
+
+  pattern_library.twig_extension:
+    class: Drupal\pattern_library\TwigExtension\PatternLibraryTwig
+    arguments: ['@renderer']
+    tags:
+      - { name: twig.extension }
