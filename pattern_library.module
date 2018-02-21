@@ -7,6 +7,7 @@
 
 use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityStorageInterface;
 
 /**
  * Implements hook_theme().
@@ -21,6 +22,25 @@ function pattern_library_theme($existing, $type, $theme, $path) {
       ],
     ]
   ];
+}
+
+/**
+ * Implements hook_theme_registry_alter().
+ */
+function pattern_library_theme_registry_alter(&$theme_registry) {
+  $module_path = drupal_get_path('module', 'pattern_library');
+  $theme_override = pattern_library_get_theme_override_manager();
+
+  foreach ($theme_override->getThemeHooks() as $theme_hook) {
+    if (!isset($theme_hook)) {
+      continue;
+    }
+    $theme_registry[$theme_hook]['type'] = 'module';
+    $theme_registry[$theme_hook]['path'] = "{$module_path}/templates";
+    $theme_registry[$theme_hook]['theme path'] = $module_path;
+    $theme_registry[$theme_hook]['template'] = 'pattern-library-layout';
+    $theme_registry[$theme_hook]['preprocess functions'][] = 'pattern_library_theme_override';
+  }
 }
 
 /**
@@ -54,6 +74,44 @@ function pattern_library_entity_view_alter(array &$build, EntityInterface $entit
 function pattern_library_field_formatter_info_alter(array &$info) {
   // Attach the pattern library layout formatter to all field types.
   $info['pattern_library_layout']['field_types'] = pattern_library_get_field_types();
+}
+
+/**
+ * Pattern theme override preprocess callback.
+ *
+ * @param $variables
+ *   The template variables.
+ * @param $template_name
+ *   The template name.
+ */
+function pattern_library_theme_override(&$variables, $template_name) {
+  $override_manager = pattern_library_get_theme_override_manager();
+  $override_entity = $override_manager->load($template_name);
+  $pattern_definition = $override_entity->patternLibraryDefinition();
+
+  foreach ($override_entity->patternMapping() as $pattern_variable => $theme_info) {
+    if (isset($variables[$pattern_variable]) || !isset($theme_info['theme_variable'])) {
+      continue;
+    }
+    $variable_name = $theme_info['theme_variable'];
+    $new_variable_value = $variables[$variable_name];
+    unset($variables[$variable_name]);
+
+    $variables[$pattern_variable] = $new_variable_value;
+  }
+
+  if (isset($pattern_definition['source'])) {
+    $variables['source'] = $pattern_definition['source'];
+  }
+}
+
+/**
+ * Get theme override manager.
+ *
+ * @return EntityStorageInterface
+ */
+function pattern_library_get_theme_override_manager() {
+  return \Drupal::service('pattern_library.theme_override.manager');
 }
 
 /**

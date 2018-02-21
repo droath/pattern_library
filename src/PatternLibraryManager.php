@@ -2,7 +2,6 @@
 
 namespace Drupal\pattern_library;
 
-use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Core\Cache\CacheBackendInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Extension\ThemeHandlerInterface;
@@ -17,7 +16,7 @@ use Drupal\pattern_library\Plugin\Pattern;
  *
  * @package Drupal\pattern_library
  */
-class PatternLibraryManager extends DefaultPluginManager implements PluginManagerInterface {
+class PatternLibraryManager extends DefaultPluginManager implements PatternLibraryManagerInterface {
 
   /**
    * Theme handler.
@@ -78,9 +77,7 @@ class PatternLibraryManager extends DefaultPluginManager implements PluginManage
   }
 
   /**
-   * Get definition instances.
-   *
-   * @return array
+   * {@inheritdoc}
    */
   public function getDefinitionInstances() {
     $instances = [];
@@ -90,6 +87,19 @@ class PatternLibraryManager extends DefaultPluginManager implements PluginManage
     }
 
     return $instances;
+  }
+
+  public function getDefinitionOptions() {
+    $options = [];
+
+    foreach ($this->getDefinitions() as $plugin_id => $definition) {
+      if (!isset($definition['label'])) {
+        continue;
+      }
+      $options[$plugin_id] = $definition['label'];
+    }
+
+    return $options;
   }
 
   /**

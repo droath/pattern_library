@@ -1,3 +1,24 @@
+pattern_library.theme_override.*:
+  type: config_entity
+  label: 'Pattern library theme override'
+  mapping:
+    id:
+      type: string
+      label: 'Theme override ID'
+    theme_hook:
+      type: string
+      label: 'Theme hook'
+    pattern_library:
+      type: string
+      label: 'Pattern library'
+    pattern_mapping:
+      type: sequence
+      label: 'Pattern Mapping'
+      sequence:
+        theme_variable:
+          type: string
+          label: 'Theme variable'
+
 field.formatter.settings.pattern_library_entity_properties:
   type: mapping
   label: 'Pattern library entity properties formatter settings.'

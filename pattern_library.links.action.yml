@@ -1,0 +1,5 @@
+pattern_library.add_form:
+  title: 'Add Override'
+  route_name: entity.pattern_library_theme_override.add_form
+  appears_on:
+    - entity.pattern_library_theme_override.collection

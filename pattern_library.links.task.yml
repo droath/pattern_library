@@ -1,10 +1,9 @@
-s:
-  title: 'Pattern Library'
-  description: 'Manage pattern library settings.'
-  parent: system.admin_config_ui
+pattern_library.settings:
+  title: 'Settings'
+  base_route: pattern_library.form.settings
   route_name: pattern_library.form.settings
 
 pattern_library.theme_override:
   title: 'Theme Override'
-  parent: pattern_library.settings
+  base_route: pattern_library.form.settings
   route_name: entity.pattern_library_theme_override.collection

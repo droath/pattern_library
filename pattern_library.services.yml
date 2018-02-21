@@ -6,3 +6,7 @@ services:
   plugin.manager.pattern_modifier_type:
     class: Drupal\pattern_library\PatternModifierTypeManager
     parent: default_plugin_manager
+
+  pattern_library.theme_override.manager:
+    class: Drupal\pattern_library\PatternThemeOverrideManager
+    arguments: ['@entity_type.manager']
