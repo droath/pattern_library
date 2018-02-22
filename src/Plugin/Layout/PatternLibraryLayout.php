@@ -8,6 +8,7 @@ use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Layout\Annotation\Layout;
 use Drupal\Core\Layout\LayoutDefault;
@@ -15,6 +16,9 @@ use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\Render\Element;
 use Drupal\field\Entity\FieldConfig;
+use Drupal\field\FieldConfigInterface;
+use Drupal\file\Entity\File;
+use Drupal\file\FileInterface;
 use Drupal\pattern_library\Exception\InvalidModifierException;
 use Drupal\pattern_library\PatternModifierTypeManager;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -244,14 +248,11 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       if (isset($modifier['value']) && !empty($modifier['value'])) {
         $value = $modifier['value'];
       }
-      else if (isset($modifier['field_name']) && isset($modifier['field_override'])
+      elseif (isset($modifier['field_name']) && isset($modifier['field_override'])
         && $modifier['field_override']) {
-        $field_name = $modifier['field_name'];
-
-        if (isset($entity->{$field_name})) {
-          $value = $entity->{$field_name}->value;
-        }
+        $value = $this->getEntityFieldValue($entity, $modifier['field_name'], $modifier_type);
       }
+
       $value = !is_array($value)
         ? Html::escape($value)
         : array_map('\Drupal\Component\Utility\Html::escape', $value);
@@ -262,10 +263,89 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
 
       /** @var PatternModifierTypeManager $modifier_manager */
       $modifiers[$name] = $modifier_manager
-        ->castModifierValue($modifier_type, $value);
+        ->processModifierValue($modifier_type, $value);
     }
 
     return $modifiers;
+  }
+
+  /**
+   * Get entity field value.
+   *
+   * @param EntityInterface $entity
+   *   The entity to retrieve the value from.
+   * @param $field_name
+   *   The field name of the property.
+   * @param $modifier_type
+   *   The field modifier type.
+   *
+   * @return null|string
+   */
+  protected function getEntityFieldValue(EntityInterface $entity, $field_name, $modifier_type) {
+    if (!isset($entity->{$field_name})) {
+      return NULL;
+    }
+    $field = $entity->{$field_name};
+
+    if ($field->isEmpty()) {
+      return NULL;
+    }
+    $value = $entity->{$field_name}->value;
+
+    /** @var FieldDefinitionInterface $field_definition */
+    $definition = $field->getFieldDefinition();
+    $field_type = $definition->getType();
+
+    if ($field_type === 'entity_reference' &&
+      ($modifier_type === 'image_path' || $modifier_type === 'file_path')) {
+      $value = NULL;
+      $file_entity = $field->entity;
+
+      if ($file_entity instanceof FileInterface) {
+        $value = $file_entity->getFileUri();
+      }
+      else {
+        $target_type = $definition->getSetting('target_type');
+
+        if ($target_type === 'media') {
+          $file_type = substr($modifier_type, 0, strpos($modifier_type, '_path'));
+          $file_entity = $this->findFileEntity($file_entity, [$file_type]);
+        }
+
+        if ($file_entity !== FALSE && $file_entity instanceof FileInterface) {
+          $value = $file_entity->getFileUri();
+        }
+      }
+    }
+
+    return $value;
+  }
+
+  /**
+   * Find file entity in provided entity.
+   *
+   * @param EntityInterface $entity
+   *   The entity on which to search within.
+   * @param array $allowed_types
+   *   An array of allowed field types.
+   *
+   * @return File|bool
+   *   The file entity object.
+   */
+  protected function findFileEntity(EntityInterface $entity, array $allowed_types) {
+    foreach ($entity->getFieldDefinitions() as $field) {
+      if (!$field instanceof FieldConfigInterface) {
+        continue;
+      }
+      $field_type = $field->getType();
+      $field_name = $field->getName();
+
+      if (in_array($field_type, $allowed_types)) {
+        return $entity->{$field_name}->entity;
+      }
+    }
+
+    return FALSE;
   }
 
   /**
@@ -440,7 +520,6 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     if (empty(Element::children($form['modifiers']))) {
       unset($form['modifiers']);
     }
-    
   }
 
   /**
@@ -468,4 +547,5 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
 
     return $options;
   }
+
 }

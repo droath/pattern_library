@@ -23,6 +23,18 @@ abstract class PatternModifierTypeBase extends PluginBase {
   }
 
   /**
+   * Define the transform value.
+   *
+   * @param $value
+   *   The casted value.
+   *
+   * @return mixed
+   */
+  public static function transformValue($value) {
+    return $value;
+  }
+
+  /**
    * Pattern modifier title.
    *
    * @return string

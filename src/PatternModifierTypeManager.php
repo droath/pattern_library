@@ -66,22 +66,24 @@ class PatternModifierTypeManager extends DefaultPluginManager {
   }
 
   /**
-   * Cast pattern modifier value.
+   * Process pattern library modifier value.
    *
-   * @param $plugin_id
+   * @param $modifier_type
    *   The modifier type plugin id.
    * @param $value
    *   Teh modifier value that should be casted.
    *
    * @return mixed
    */
-  public function castModifierValue($plugin_id, $value) {
-    $classname = $this->getClassname($plugin_id);
+  public function processModifierValue($modifier_type, $value) {
+    $classname = $this->getClassname($modifier_type);
 
     if (!isset($classname)) {
       return $value;
     }
+    $value = $classname::castValue($value);
 
-    return $classname::castValue($value);
+    return $classname::transformValue($value);
   }
+
 }
