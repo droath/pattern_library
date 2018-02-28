@@ -476,7 +476,9 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       $form['modifiers'][$name]['#suffix'] = '</div>';
 
       if (!isset($modifier['field_override']) || !$modifier['field_override']) {
-        $definition['default_value'] = $modifier['value'];
+        if (!empty($modifier['value'])) {
+          $definition['default_value'] = $modifier['value'];
+        }
         try {
           $form['modifiers'][$name]['value'] = $modifier_manager
             ->createInstance($type, $definition)
