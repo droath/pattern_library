@@ -366,9 +366,6 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         continue;
       }
       foreach ($regions[$region_name] as $index => $element) {
-        if (!isset($element['#items']) || !isset($element['#field_name'])) {
-          continue;
-        }
         $variables[$region_name] = $regions[$region_name][$index];
 
         if ($this->usesRenderType) {

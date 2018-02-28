@@ -275,7 +275,7 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
       if (!isset($item->{$property})) {
         continue;
       }
-      $property_values[$region] = $item->{$property};
+      $property_values[$region][] = ['#markup' => $item->{$property}];
     }
 
     return $property_values;
