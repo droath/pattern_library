@@ -5,16 +5,19 @@ namespace Drupal\pattern_library\Plugin\Field\FieldFormatter;
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Annotation\Translation;
+use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Field\Annotation\FieldFormatter;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Field\FieldItemInterface;
 use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Field\FormatterBase;
+use Drupal\Core\Field\Plugin\Field\FieldType\EntityReferenceItem;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\SubformState;
 use Drupal\Core\Layout\LayoutPluginManagerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Plugin\PluginFormInterface;
+use Drupal\Core\Render\Element;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -34,6 +37,11 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
   protected $layoutManager;
 
   /**
+   * @var EntityFieldManagerInterface
+   */
+  protected $entityFieldManager;
+
+  /**
    * Property data types excluded.
    */
   const PROPERTY_TYPE_EXCLUDED = [
@@ -51,6 +59,7 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
     $label,
     $view_mode,
     $third_party_settings,
+    EntityFieldManagerInterface $entity_field_manager,
     LayoutPluginManagerInterface $layout_manager
   ) {
     parent::__construct(
@@ -63,6 +72,7 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
       $third_party_settings
     );
     $this->layoutManager = $layout_manager;
+    $this->entityFieldManager = $entity_field_manager;
   }
 
   /**
@@ -89,6 +99,7 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
       $configuration['label'],
       $configuration['view_mode'],
       $configuration['third_party_settings'],
+      $container->get('entity_field.manager'),
       $container->get('plugin.manager.core.layout')
     );
   }
@@ -175,6 +186,17 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
           '#empty_option' => $this->t(' -None- '),
           '#default_value' => isset($property_setting['field_property'])
             ? $property_setting['field_property']
+            : NULL,
+        ];
+        $form['property_mapping'][$region]['field_render'] = [
+          '#type' => 'select',
+          '#title' => $this->t('Field Render'),
+          '#options' => [
+            'value_only' => $this->t('Value Only'),
+          ],
+          '#empty_option' => $this->t('- Default -'),
+          '#default_value' => isset($property_setting['field_render'])
+            ? $property_setting['field_render']
             : NULL,
         ];
       }
@@ -270,15 +292,51 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
       if (!isset($info['field_property']) || empty($info['field_property'])) {
         continue;
       }
-      $property = $info['field_property'];
-
-      if (!isset($item->{$property})) {
-        continue;
-      }
-      $property_values[$region][] = ['#markup' => $item->{$property}];
+      $property_values[$region][] = $this->getItemPropertyValue(
+        $item,
+        $info['field_property'],
+        $info['field_render']
+      );
     }
 
     return $property_values;
+  }
+
+  /**
+   * Get item property value.
+   *
+   * @param FieldItemInterface $item
+   * @param $property
+   * @param $render_type
+   *
+   * @return array
+   *   A render array of the field property value.
+   */
+  protected function getItemPropertyValue(FieldItemInterface $item, $property, $render_type) {
+    if ($item->isEmpty()) {
+      return [];
+    }
+
+    if ($item instanceof EntityReferenceItem) {
+      $elements = $item->entity->hasField($property)
+        ? $item->entity->{$property}->view()
+        : [];
+      $value = $elements;
+
+      if ($render_type == 'value_only') {
+        $value = [];
+        foreach (Element::children($elements) as $delta) {
+          $value[$delta] = $elements[$delta];
+        }
+      }
+    }
+    else {
+      $value = [
+        '#markup' => isset($item->{$property}) ? $item->{$property} : NULL
+      ];
+    }
+
+    return $value;
   }
 
   /**
@@ -290,14 +348,41 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
   protected function getFieldPropertyOptions() {
     $options = [];
 
-    foreach ($this->getFieldPropertyDefinitions() as $property => $definition) {
-      if (in_array($definition->getDataType(), static::PROPERTY_TYPE_EXCLUDED)) {
-        continue;
+    foreach ($this->getFieldProperties() as $definitions) {
+      foreach ($definitions as $property => $definition) {
+        if ($definition->isComputed()
+          || in_array($definition->getDataType(), static::PROPERTY_TYPE_EXCLUDED)) {
+          continue;
+        }
+        $options[$property] = $definition->getLabel();
       }
-      $options[$property] = $definition->getLabel();
     }
 
     return $options;
+  }
+
+  /**
+   * Get field properties.
+   *
+   * @return array
+   *   An array of field properties.
+   */
+  protected function getFieldProperties() {
+    $properties = [];
+
+    if ($this->fieldDefinition->getType() === 'entity_reference') {
+      $type = $this->getFieldSetting('target_type');
+      $settings = $this->getFieldSetting('handler_settings');
+
+      foreach ($settings['target_bundles'] as $bundle) {
+        $properties[] = $this->entityFieldManager->getFieldDefinitions($type, $bundle);
+      }
+    }
+    else {
+      $properties[] = $this->getFieldPropertyDefinitions();
+    }
+
+    return $properties;
   }
 
   /**
