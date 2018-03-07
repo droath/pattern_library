@@ -292,10 +292,14 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
       if (!isset($info['field_property']) || empty($info['field_property'])) {
         continue;
       }
+      $render_type = isset($info['field_render'])
+        ? $info['field_render']
+        : NULL;
+
       $property_values[$region][] = $this->getItemPropertyValue(
         $item,
         $info['field_property'],
-        $info['field_render']
+        $render_type
       );
     }
 
