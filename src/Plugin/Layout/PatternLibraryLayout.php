@@ -361,22 +361,38 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     $variables = [];
     $configuration = $this->getConfiguration();
 
+
     foreach ($this->getPluginDefinition()->getRegionNames() as $region_name) {
       if (!array_key_exists($region_name, $regions)) {
         continue;
       }
-      foreach ($regions[$region_name] as $index => $element) {
-        $variables[$region_name] = $regions[$region_name][$index];
+      $elements = $regions[$region_name];
+      $elements_count = count($elements);
+
+      foreach ($elements as $index => $element) {
+        $reference = &$variables[$region_name];
+        // If there is multiple elements contained in a region then index the
+        // variables array. When extracting a field value from the variable
+        // you're going to have to declare the index, only if it contains
+        // multiple values, like so {{ field_element[0].url }}.
+        if ($elements_count > 1) {
+          $reference = &$variables[$region_name][$index];
+        }
+        $reference = $regions[$region_name][$index];
 
         if ($this->usesRenderType) {
-          // Set the variables based on the pattern render type. This option is
-          // only valid when the regions contain field items.
+          // Overwrite the variable value based on the selected field render
+          // type. Values will not be overwritten if the element doesn't have
+          // any children associated with it.
           if (isset($configuration['render_type'])
             && $configuration['render_type'] == 'value_only') {
+            $children = Element::children($element);
 
-            $variables[$region_name] = [];
-            foreach (Element::children($element) as $delta) {
-              $variables[$region_name][$delta] = $element[$delta];
+            if (count($children) !== 0) {
+              $reference = [];
+              foreach ($children as $delta) {
+                $reference[$delta] = $element[$delta];
+              }
             }
           }
         }
