@@ -64,6 +64,34 @@ class Pattern extends PluginBase implements PatternInterface {
   }
 
   /**
+   * Pattern libraries.
+   *
+   * @return array
+   */
+  public function getLibraries() {
+    $definition = $this->getPluginDefinition();
+    return isset($definition['libraries']) ? $definition['libraries'] : [];
+  }
+
+  /**
+   * Pattern library key.
+   *
+   * @return string
+   */
+  public function libraryKey() {
+    return "{$this->getProvider()}/{$this->getPluginId()}";
+  }
+
+  /**
+   * Has pattern libraries.
+   *
+   * @return boolean
+   */
+  public function hasLibraries() {
+    return !empty($this->getLibraries());
+  }
+
+  /**
    * {@inheritdoc}
    */
   public function validate() {

@@ -49,19 +49,23 @@ class PatternLibraryLayoutDeriver extends DeriverBase implements ContainerDerive
       if (!$pattern->validate()) {
         continue;
       }
-      $regions = $this->getRegionsFromVariables($pattern);
-
-      $this->derivatives[$plugin_id] = new PatternLayoutDefinition([
+      $definition = [
         'id' => $plugin_id,
         'path' => 'templates',
         'class' => PatternLibraryLayout::class,
         'label' => $pattern->getLabel(),
-        'regions' => $regions,
+        'regions' => $this->getRegionsFromVariables($pattern),
         'category' => 'Pattern Library',
         'template' => 'pattern-library-layout',
         'provider' => 'pattern_library',
         'pattern_definition' => $pattern
-      ]);
+      ];
+
+      if ($pattern->hasLibraries()) {
+        $definition['library'] = "pattern_library/{$pattern->libraryKey()}";
+      }
+
+      $this->derivatives[$plugin_id] = new PatternLayoutDefinition($definition);
     }
 
     return $this->derivatives;

@@ -8,6 +8,27 @@
 use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
+use Drupal\pattern_library\PatternLibraryManager;
+use Drupal\pattern_library\Plugin\Pattern;
+
+/**
+ * Implements hook_library_info_build().
+ */
+function pattern_library_library_info_build() {
+  /** @var PatternLibraryManager $manager */
+  $manager = \Drupal::service('plugin.manager.pattern_library');
+
+  $libraries =  [];
+  /** @var Pattern $instance */
+  foreach ($manager->getDefinitionInstances() as $plugin_id => $instance) {
+    if (!$instance->hasLibraries()) {
+      continue;
+    }
+    $libraries[$instance->libraryKey()] = $instance->getLibraries();
+  }
+
+  return $libraries;
+}
 
 /**
  * Implements hook_theme().
