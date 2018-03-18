@@ -27,7 +27,8 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   id = "pattern_library_entity_properties",
  *   label = @Translation("Entity Properties"),
  *   field_types = {
- *     "entity_reference"
+ *     "entity_reference",
+ *     "entity_reference_revisions"
  *   }
  * )
  */
