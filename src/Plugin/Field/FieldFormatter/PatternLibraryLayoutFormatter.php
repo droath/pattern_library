@@ -374,8 +374,11 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
   protected function getFieldProperties() {
     $properties = [];
 
-    $interface = '\Drupal\Core\Field\EntityReferenceFieldItemListInterface';
-    if (class_implements($this->fieldDefinition->getClass(), $interface)) {
+    $interface = 'Drupal\Core\Field\EntityReferenceFieldItemListInterface';
+    $implements = class_implements($this->fieldDefinition->getClass());
+
+    if ($implements !== FALSE
+      && in_array($interface, $implements)) {
       $type = $this->getFieldSetting('target_type');
       $settings = $this->getFieldSetting('handler_settings');
 
