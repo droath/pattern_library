@@ -15,6 +15,7 @@ use Drupal\Core\Layout\LayoutDefault;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\Render\Element;
+use Drupal\Core\Render\RendererInterface;
 use Drupal\field\Entity\FieldConfig;
 use Drupal\field\FieldConfigInterface;
 use Drupal\file\Entity\File;
@@ -33,6 +34,11 @@ use Symfony\Component\HttpFoundation\RequestStack;
  * )
  */
 class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface, ContainerFactoryPluginInterface {
+
+  /**
+   * @var RendererInterface
+   */
+  protected $renderer;
 
   /**
    * @var RequestStack
@@ -61,11 +67,13 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     array $configuration,
     $plugin_id,
     $plugin_definition,
+    RendererInterface $renderer,
     RequestStack $request_stack,
     EntityFieldManagerInterface $entity_field_manager,
     PluginManagerInterface $modifier_type_manager
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
+    $this->renderer = $renderer;
     $this->requestStack = $request_stack;
     $this->entityFieldManager = $entity_field_manager;
     $this->modifierTypeManager = $modifier_type_manager;
@@ -84,6 +92,7 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       $configuration,
       $plugin_id,
       $plugin_definition,
+      $container->get('renderer'),
       $container->get('request_stack'),
       $container->get('entity_field.manager'),
       $container->get('plugin.manager.pattern_modifier_type')
@@ -361,7 +370,6 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     $variables = [];
     $configuration = $this->getConfiguration();
 
-
     foreach ($this->getPluginDefinition()->getRegionNames() as $region_name) {
       if (!array_key_exists($region_name, $regions)) {
         continue;
@@ -378,9 +386,15 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         if ($elements_count > 1) {
           $reference = &$variables[$region_name][$index];
         }
-        $reference = $regions[$region_name][$index];
 
-        if ($this->usesRenderType) {
+        // Verify the reference element has content associated with it. As we
+        // don't want to render elements without any content, due to it
+        // producing empty markup which can lead to unexpected styling issues.
+        $reference = $this->hasRenderOutput($regions[$region_name][$index])
+          ? $regions[$region_name][$index]
+          : NULL;
+
+        if (isset($reference) && $this->usesRenderType) {
           // Overwrite the variable value based on the selected field render
           // type. Values will not be overwritten if the element doesn't have
           // any children associated with it.
@@ -403,6 +417,26 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
   }
 
   /**
+   * Determine if element has render output.
+   *
+   * @param $element
+   *   The render element array
+   *
+   * @return bool
+   * @throws \Exception
+   */
+  protected function hasRenderOutput(array $element) {
+    $output = $this->renderer->render($element);
+
+    $output = preg_replace([
+      '/<[a-z\/][^>]*>/',
+      '/<!--(.|\s)*?-->/',
+    ], '', $output);
+
+    return !empty(trim($output));
+  }
+
+  /**s
    * Get context based on request.
    *
    * @return array
