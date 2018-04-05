@@ -7,9 +7,12 @@ use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Entity\Display\EntityViewDisplayInterface;
 use Drupal\Core\Entity\Entity\EntityViewDisplay;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Entity\FieldableEntityInterface;
 use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Form\FormStateInterface;
@@ -49,6 +52,11 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
   protected $requestStack;
 
   /**
+   * @var EntityTypeManagerInterface
+   */
+  protected $entityTypeManager;
+
+  /**
    * @var EntityFieldManagerInterface
    */
   protected $entityFieldManager;
@@ -72,12 +80,14 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     $plugin_definition,
     RendererInterface $renderer,
     RequestStack $request_stack,
+    EntityTypeManagerInterface $entity_type_manager,
     EntityFieldManagerInterface $entity_field_manager,
     PluginManagerInterface $modifier_type_manager
   ) {
     parent::__construct($configuration, $plugin_id, $plugin_definition);
     $this->renderer = $renderer;
     $this->requestStack = $request_stack;
+    $this->entityTypeManager = $entity_type_manager;
     $this->entityFieldManager = $entity_field_manager;
     $this->modifierTypeManager = $modifier_type_manager;
   }
@@ -97,6 +107,7 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       $plugin_definition,
       $container->get('renderer'),
       $container->get('request_stack'),
+      $container->get('entity_type.manager'),
       $container->get('entity_field.manager'),
       $container->get('plugin.manager.pattern_modifier_type')
     );
@@ -368,6 +379,7 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
    *
    * @return array
    *   An array of pattern variables.
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    */
   protected function getPatternVariables(array $regions) {
     $variables = [];
@@ -402,8 +414,11 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         if (isset($reference['#object']) && $reference['#field_name']) {
           $object = $reference['#object'];
           $field_name = $reference['#field_name'];
+          $view_mode = isset($reference['#view_mode'])
+            ? $reference['#view_mode']
+            : 'default';
 
-          if (!$this->hasEntityFieldData($object, $field_name)) {
+          if (!$this->hasEntityFieldData($object, $field_name, $view_mode)) {
             $reference = NULL;
           }
         }
@@ -442,6 +457,7 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
    * @param string $view_mode
    *
    * @return bool
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
    */
   protected function hasEntityFieldData(ContentEntityInterface $entity, $field_name, $view_mode = 'default') {
     if (!$entity->hasField($field_name)) {
@@ -454,16 +470,19 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       $entity_reference = $field->entity;
 
       /** @var EntityViewDisplay $display */
-      $display = \Drupal::service('entity_type.manager')
-        ->getStorage('entity_view_display')
-        ->load("{$entity_reference->getEntityTypeId()}.{$entity_reference->bundle()}.{$view_mode}");
+      $display = $this->getEntityViewDisplay($entity_reference, $view_mode);
 
-      foreach (array_keys($display->getComponents()) as $field_name) {
-        $component_field = $entity_reference->get($field_name);
+      if (isset($display)) {
+        foreach (array_keys($display->getComponents()) as $field_name) {
+          $component_field = $entity_reference->get($field_name);
 
-        if (!$component_field->isEmpty()) {
-          return TRUE;
+          if (!$component_field->isEmpty()) {
+            return TRUE;
+          }
         }
+      }
+      elseif (!$field->isEmpty()) {
+        return TRUE;
       }
     }
     elseif (!$field->isEmpty()) {
@@ -471,6 +490,33 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     }
 
     return FALSE;
+  }
+
+  /**
+   * Get entity view display.
+   *
+   * @param FieldableEntityInterface $entity
+   * @param $view_mode
+   * @param bool $default_fallback
+   *
+   * @return EntityViewDisplayInterface|null
+   * @throws \Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException
+   */
+  protected function getEntityViewDisplay(FieldableEntityInterface $entity, $view_mode, $default_fallback = TRUE) {
+    $display_storage = $this->entityTypeManager
+      ->getStorage('entity_view_display');
+
+    $base_id = "{$entity->getEntityTypeId()}.{$entity->bundle()}";
+    $display = $display_storage->load("{$base_id}.{$view_mode}");
+
+    // Fallback to the default entity display if not found.
+    if (!isset($display)
+      && $default_fallback
+      && $view_mode !== 'default') {
+      $display = $display_storage->load("{$base_id}.default");
+    }
+
+    return $display;
   }
 
   /**
