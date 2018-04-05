@@ -6,8 +6,11 @@ use Drupal\Component\Plugin\Exception\PluginException;
 use Drupal\Component\Plugin\PluginManagerInterface;
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Entity\ContentEntityInterface;
+use Drupal\Core\Entity\Entity\EntityViewDisplay;
 use Drupal\Core\Entity\EntityFieldManagerInterface;
 use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Field\EntityReferenceFieldItemListInterface;
 use Drupal\Core\Field\FieldDefinitionInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Layout\Annotation\Layout;
@@ -374,11 +377,12 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       if (!array_key_exists($region_name, $regions)) {
         continue;
       }
+      $reference = &$variables[$region_name];
+
       $elements = $regions[$region_name];
       $elements_count = count($elements);
 
       foreach ($elements as $index => $element) {
-        $reference = &$variables[$region_name];
         // If there is multiple elements contained in a region then index the
         // variables array. When extracting a field value from the variable
         // you're going to have to declare the index, only if it contains
@@ -386,15 +390,29 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         if ($elements_count > 1) {
           $reference = &$variables[$region_name][$index];
         }
+        unset($element['#cache']);
+        unset($element['#weight']);
 
         // Verify the reference element has content associated with it. As we
         // don't want to render elements without any content, due to it
         // producing empty markup which can lead to unexpected styling issues.
-        $reference = $this->hasRenderOutput($regions[$region_name][$index])
-          ? $regions[$region_name][$index]
-          : NULL;
+        $reference = !empty($element) ? $element : NULL;
 
-        if (isset($reference) && $this->usesRenderType) {
+        // Verity that object are not rendering empty data.
+        if (isset($reference['#object']) && $reference['#field_name']) {
+          $object = $reference['#object'];
+          $field_name = $reference['#field_name'];
+
+          if (!$this->hasEntityFieldData($object, $field_name)) {
+            $reference = NULL;
+          }
+        }
+
+        if (!isset($reference)) {
+          continue;
+        }
+
+        if ($this->usesRenderType) {
           // Overwrite the variable value based on the selected field render
           // type. Values will not be overwritten if the element doesn't have
           // any children associated with it.
@@ -417,26 +435,45 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
   }
 
   /**
-   * Determine if element has render output.
+   * Determine if entity field has data.
    *
-   * @param $element
-   *   The render element array
+   * @param ContentEntityInterface $entity
+   * @param $field_name
+   * @param string $view_mode
    *
    * @return bool
-   * @throws \Exception
    */
-  protected function hasRenderOutput(array $element) {
-    $output = $this->renderer->render($element);
+  protected function hasEntityFieldData(ContentEntityInterface $entity, $field_name, $view_mode = 'default') {
+    if (!$entity->hasField($field_name)) {
+      return FALSE;
+    }
+    $field = $entity->get($field_name);
 
-    $output = preg_replace([
-      '/<[a-z\/][^>]*>/',
-      '/<!--(.|\s)*?-->/',
-    ], '', $output);
+    if ($field instanceof EntityReferenceFieldItemListInterface) {
+      /** @var ContentEntityInterface $entity_reference */
+      $entity_reference = $field->entity;
 
-    return !empty(trim($output));
+      /** @var EntityViewDisplay $display */
+      $display = \Drupal::service('entity_type.manager')
+        ->getStorage('entity_view_display')
+        ->load("{$entity_reference->getEntityTypeId()}.{$entity_reference->bundle()}.{$view_mode}");
+
+      foreach (array_keys($display->getComponents()) as $field_name) {
+        $component_field = $entity_reference->get($field_name);
+
+        if (!$component_field->isEmpty()) {
+          return TRUE;
+        }
+      }
+    }
+    elseif (!$field->isEmpty()) {
+      return TRUE;
+    }
+
+    return FALSE;
   }
 
-  /**s
+  /**
    * Get context based on request.
    *
    * @return array
