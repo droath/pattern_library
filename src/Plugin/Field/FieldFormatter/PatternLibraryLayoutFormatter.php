@@ -18,6 +18,7 @@ use Drupal\Core\Layout\LayoutPluginManagerInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Plugin\PluginFormInterface;
 use Drupal\Core\Render\Element;
+use Drupal\link\LinkItemInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -334,9 +335,18 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
         }
       }
     }
+    elseif ($item instanceof LinkItemInterface) {
+      $value = [
+        '#plain_text' => $property === 'uri'
+          ? $item->getUrl()->toString()
+          : $item->{$property},
+      ];
+    }
     else {
       $value = [
-        '#markup' => isset($item->{$property}) ? $item->{$property} : NULL
+        '#plain_text' => isset($item->{$property})
+          ? $item->{$property}
+          : NULL
       ];
     }
 
