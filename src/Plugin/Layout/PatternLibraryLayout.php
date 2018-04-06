@@ -411,7 +411,8 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         $reference = !empty($element) ? $element : NULL;
 
         // Verity that object are not rendering empty data.
-        if (isset($reference['#object']) && $reference['#field_name']) {
+        if (isset($reference['#object']) && isset($reference['#field_name'])
+          && strpos($reference['#field_name'], 'field_') !== FALSE) {
           $object = $reference['#object'];
           $field_name = $reference['#field_name'];
           $view_mode = isset($reference['#view_mode'])
@@ -473,8 +474,8 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       $display = $this->getEntityViewDisplay($entity_reference, $view_mode);
 
       if (isset($display)) {
-        foreach (array_keys($display->getComponents()) as $field_name) {
-          $component_field = $entity_reference->get($field_name);
+        foreach (array_keys($display->getComponents()) as $name) {
+          $component_field = $entity_reference->get($name);
 
           if (!$component_field->isEmpty()) {
             return TRUE;
