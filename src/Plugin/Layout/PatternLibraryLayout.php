@@ -158,6 +158,7 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     return parent::defaultConfiguration() + [
         'modifiers' => [],
         'render_type' => 'default',
+        'render_empty' => FALSE,
       ];
   }
 
@@ -179,6 +180,13 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         '#default_value' => $this->getConfiguration()['render_type'],
       ];
     }
+    $form['render_empty'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Render empty'),
+      '#description' => $this->t('Regardless if data exist, pattern will be 
+      rendered.'),
+      '#default_value' => $this->getConfiguration()['render_empty']
+    ];
 
     return $form;
   }
@@ -393,7 +401,6 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
 
       $elements = $regions[$region_name];
       $elements_count = count($elements);
-
       foreach ($elements as $index => $element) {
         // If there is multiple elements contained in a region then index the
         // variables array. When extracting a field value from the variable
@@ -402,30 +409,35 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
         if ($elements_count > 1) {
           $reference = &$variables[$region_name][$index];
         }
-        unset($element['#cache']);
-        unset($element['#weight']);
 
-        // Verify the reference element has content associated with it. As we
-        // don't want to render elements without any content, due to it
-        // producing empty markup which can lead to unexpected styling issues.
-        $reference = !empty($element) ? $element : NULL;
+        if (isset($configuration['render_empty'])
+          && !$configuration['render_empty']) {
 
-        // Verity that object are not rendering empty data.
-        if (isset($reference['#object']) && isset($reference['#field_name'])
-          && strpos($reference['#field_name'], 'field_') !== FALSE) {
-          $object = $reference['#object'];
-          $field_name = $reference['#field_name'];
-          $view_mode = isset($reference['#view_mode'])
-            ? $reference['#view_mode']
-            : 'default';
+          unset($element['#cache']);
+          unset($element['#weight']);
 
-          if (!$this->hasEntityFieldData($object, $field_name, $view_mode)) {
-            $reference = NULL;
+          // Verify the reference element has content associated with it. As we
+          // don't want to render elements without any content, due to it
+          // producing empty markup which can lead to unexpected styling issues.
+          $reference = !empty($element) ? $element : NULL;
+
+          // Verity that object are not rendering empty data.
+          if (isset($reference['#object']) && isset($reference['#field_name'])
+            && strpos($reference['#field_name'], 'field_') !== FALSE) {
+            $object = $reference['#object'];
+            $field_name = $reference['#field_name'];
+            $view_mode = isset($reference['#view_mode'])
+              ? $reference['#view_mode']
+              : 'default';
+
+            if (!$this->hasEntityFieldData($object, $field_name, $view_mode)) {
+              $reference = NULL;
+            }
           }
-        }
 
-        if (!isset($reference)) {
-          continue;
+          if (!isset($reference)) {
+            continue;
+          }
         }
 
         if ($this->usesRenderType) {
