@@ -344,7 +344,7 @@ class PatternLibraryLayoutFormatter extends FormatterBase implements ContainerFa
     }
     else {
       $value = [
-        '#plain_text' => isset($item->{$property})
+        '#markup' => isset($item->{$property})
           ? $item->{$property}
           : NULL
       ];
