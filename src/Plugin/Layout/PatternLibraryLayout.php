@@ -123,7 +123,7 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
     $pattern = $definition->getPatternDefinition();
 
     $build = [
-      '#theme' => $definition->getThemeHook(),
+      '#theme' => 'pattern_library_layout',
       '#source' => $pattern->getSource(),
       '#variables' => $this->getPatternVariables($regions),
       '#pre_render' => [

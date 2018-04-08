@@ -56,7 +56,6 @@ class PatternLibraryLayoutDeriver extends DeriverBase implements ContainerDerive
         'label' => $pattern->getLabel(),
         'regions' => $this->getRegionsFromVariables($pattern),
         'category' => 'Pattern Library',
-        'template' => 'pattern-library-layout',
         'provider' => 'pattern_library',
         'pattern_definition' => $pattern
       ];
