@@ -486,6 +486,20 @@ class PatternLibraryLayout extends LayoutDefault implements PluginFormInterface,
       $display = $this->getEntityViewDisplay($entity_reference, $view_mode);
 
       if (isset($display)) {
+
+        // Additional checking for pattern library layout settings in ds.
+        if ($ds_layout = $display->getThirdPartySetting('ds', 'layout')) {
+
+          if (isset($ds_layout['settings'])
+            && strpos($ds_layout['id'], 'pattern_library:') !== FALSE) {
+            $settings = $ds_layout['settings'];
+
+            if (isset($settings['render_empty']) && $settings['render_empty']) {
+              return TRUE;
+            }
+          }
+        }
+
         foreach (array_keys($display->getComponents()) as $name) {
           $component_field = $entity_reference->get($name);
 
