@@ -3,7 +3,7 @@
 
 The pattern library module provides a way to define patterns that are managed by an internal or external pattern framework like [Pattern Lab](http://patternlab.io/) to the Drupal ecosystem. This is as easy as placing a pattern definition in either a custom module or theme. 
 
-##<a name="integrations"></a> Integrations
+## <a name="integrations"></a> Integrations
 
 #### Entity Display
 
@@ -15,7 +15,7 @@ Most field types will have an additional field formatter, labeled **Pattern Libr
 
 There is another field formatter that's available for entity reference field types, which is labeled **Entity Properties**. This allow for a site-builder to access properties from an entity reference. As most things in Drupal are now entities, this provides a lot of different use cases. A common use case would be to extract an image URI from a media reference field, which you could then access in the pattern lab twig template.
 
-##<a name="getting-started"></a> Getting Started
+## <a name="getting-started"></a> Getting Started
 
 First, you're going to need to build or use a contributed theme that specializes in organizing patterns. I would recommend using [Emulsify](https://www.drupal.org/project/emulsify), which you can easily setup in a short amount of time. As the project is well documented, and there are plenty of training videos on how to get started.
 
@@ -28,7 +28,7 @@ If you're needing to manipulate the field data prior to consuming it via the pat
 > Throughout this documentation, I'm going to assume you're defining patterns in a theme and using the pattern lab framework. Along with using the display suite module to render the pattern layouts.
 
 
-##<a name="pattern-discovery"></a> Pattern Discovery
+## <a name="pattern-discovery"></a> Pattern Discovery
 
 
 There are two different mechanisms on which patterns are discoverable. The most convenient (and recommend if using pattern lab) is inside the same directory where the twig markup for the atom, molecule, organism, etc. are defined. As this keeps the pattern implementation self contained and encapsulated.
@@ -38,7 +38,7 @@ Most Drupal contributed themes, like Emulsify that specialize in pattern lab bas
 If you're only using the pattern library module to manage a couple patterns and don't need a framework, you'll be able to define a pattern definition in either the module or theme root directory. After defining a pattern to the Drupal ecosystem you'll need to remember to clear the cache, prior to it showing up in the Drupal UI.
 
 
-##<a name="pattern-modifiers"></a> Pattern Modifiers 
+## <a name="pattern-modifiers"></a> Pattern Modifiers 
 
 Layouts defined by the pattern library module are constructed in a way so they're able to collect additional pattern metadata, which we call modifiers. Modifier attributes could be something that changes based on the site-builder or content editors discretion. An example would be: background colors, text justification, background images, and the list goes on. 
 
@@ -54,7 +54,7 @@ Modifiers are exposed using the plugin API, so developers can develop their own 
 - file_path
 - image_path
 
-##<a name="pattern-definition"></a> Pattern Definition 
+## <a name="pattern-definition"></a> Pattern Definition 
 
 Define a pattern definition using the available directives:
 
